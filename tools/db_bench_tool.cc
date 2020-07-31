@@ -2785,6 +2785,11 @@ class Benchmark {
   //   |        key 00000         |
   //   ----------------------------
   void GenerateKeyFromInt(uint64_t v, int64_t num_keys, Slice* key) {
+
+    std::cout << "keys per prefix: " << keys_per_prefix_ << std::endl;
+    std::cout << "v: " << v << std::endl;
+    std::cout << "num keys: " << num_keys << std::endl;
+
     if (!keys_.empty()) {
       assert(FLAGS_use_existing_keys);
       assert(keys_.size() == static_cast<size_t>(num_keys));
