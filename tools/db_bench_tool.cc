@@ -2786,9 +2786,9 @@ class Benchmark {
   //   ----------------------------
   void GenerateKeyFromInt(uint64_t v, int64_t num_keys, Slice* key) {
 
-    std::cout << "keys per prefix: " << keys_per_prefix_ << std::endl;
-    std::cout << "v: " << v << std::endl;
-    std::cout << "num keys: " << num_keys << std::endl;
+    // std::cout << "keys per prefix: " << keys_per_prefix_ << std::endl;
+    // std::cout << "v: " << v << std::endl;
+    // std::cout << "num keys: " << num_keys << std::endl;
 
     if (!keys_.empty()) {
       assert(FLAGS_use_existing_keys);
@@ -5499,6 +5499,38 @@ class Benchmark {
     }
   };
 
+  // write out keys if threshold is exceeded
+  class KeyBuffer {
+      public:
+          KeyBuffer() {
+              keys_.reserve(batch_size_);
+              output_.open("keydump.txt", std::ofstream::out | std::ofstream::app);
+          };
+          ~KeyBuffer() {
+              // write out remaining keys
+              WriteBatchOut();
+              output_.close();
+          };
+
+      void AddKey(int64_t key) {
+          if (keys_.size() == batch_size_) { WriteBatchOut(); }
+          keys_.emplace_back(key);
+      };
+
+    private:
+      void WriteBatchOut(){
+        std::cout << "write out batch..." << std::endl;
+        for (const auto& key: keys_)
+            output_ << key << std::endl;
+        keys_.clear();
+        keys_.reserve(batch_size_);
+      };
+
+      uint64_t batch_size_ = 1 * 1024 / 8;  // keep 128 MiB keys in buffer at most
+      std::ofstream output_;
+      std::vector<int64_t> keys_;
+  };
+
   // The social graph wokrload mixed with Get, Put, Iterator queries.
   // The value size and iterator length follow Pareto distribution.
   // The overall key access follow power distribution. If user models the
@@ -5507,6 +5539,9 @@ class Benchmark {
   // needs to decides the ratio between Get, Put, Iterator queries before
   // starting the benchmark.
   void MixGraph(ThreadState* thread) {
+    // keep all keys in buffer
+    KeyBuffer key_buffer;
+
     int64_t read = 0;  // including single gets and Next of iterators
     int64_t gets = 0;
     int64_t puts = 0;
@@ -5578,7 +5613,14 @@ class Benchmark {
         Random64 rand(key_seed);
         key_rand = static_cast<int64_t>(rand.Next()) % FLAGS_num;
       }
+
+
       GenerateKeyFromInt(key_rand, FLAGS_num, &key);
+      // assert(key_rand == reinterpret_cast<uint64_t>(key.data()));
+
+      // write key out to buffer
+      key_buffer.AddKey(key_rand);
+
       int query_type = query.GetType(rand_v);
 
       // change the qps
